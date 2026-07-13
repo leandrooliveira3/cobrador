@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "python3 -c \"import urllib.request; urllib.request.urlretrieve('https://bootstrap.pypa.io/get-pip.py', 'get-pip.py')\" && python3 get-pip.py && python3 -m pip install -r requirements.txt && python3 app.py",
     "start": "python3 app.py",
-    "build": "echo 'No build required for Python/Flask'"
+    "build": "mkdir -p dist && echo 'No build required for Python/Flask'"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
