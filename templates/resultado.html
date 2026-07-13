@@ -86,6 +86,7 @@
                         <p class="text-muted">Dados insuficientes para cálculo de gasometria.</p>
                         {% endif %}
                         
+                        {% if not albumina_encontrada %}
                         <div class="alert alert-warning py-2 px-3 d-flex align-items-center rounded-3 mb-3">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i>
                             <small>
@@ -93,6 +94,7 @@
                                 Para maior precisão, insira o valor real abaixo.
                             </small>
                         </div>
+                        {% endif %}
                         
                         <form method="POST" action="/processar" class="d-flex" id="form-recalcular">
                             <input type="hidden" name="texto" value="{{ request.form.texto }}">
@@ -127,7 +129,7 @@
                         <tbody>
                             {% for ex in alterados %}
                             <tr>
-                                <td class="ps-4 py-3">{{ ex.nome }}</td>
+                                <td class="ps-4 py-3 fw-semibold text-danger">{{ ex.nome }}</td>
                                 <td class="py-3 text-muted small text-uppercase">{{ ex.material }}</td>
                                 <td class="text-center py-3 fw-bold text-danger">{{ ex.valor }}</td>
                                 <td class="text-center py-3 text-muted small">{{ ex.referencia }}</td>
@@ -140,6 +142,65 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+
+        <!-- Todos os Exames Encontrados -->
+        <div class="card shadow-sm border-0 mt-4 rounded-4">
+            <div class="card-header bg-white border-0 pt-4 pb-0">
+                <h5 class="fw-bold text-success mb-0"><i class="bi bi-list-check"></i> Todos os Exames Encontrados</h5>
+            </div>
+            <div class="card-body">
+                {% if grouped_exames %}
+                    <div class="accordion" id="accordionExames">
+                        {% for mat, items in grouped_exames.items() %}
+                        <div class="accordion-item border-0 mb-2 shadow-sm rounded-3 overflow-hidden">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button bg-light fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}" aria-expanded="true">
+                                    <i class="bi bi-droplet-fill text-primary me-2"></i> {{ mat | upper }}
+                                </button>
+                            </h2>
+                            <div id="collapse{{ loop.index }}" class="accordion-collapse collapse show" data-bs-parent="#accordionExames">
+                                <div class="accordion-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover mb-0 align-middle">
+                                            <thead class="table-light text-muted small">
+                                                <tr>
+                                                    <th class="ps-4">EXAME</th>
+                                                    <th>RESULTADO</th>
+                                                    <th class="text-center">REFERÊNCIA</th>
+                                                    <th>DETALHES / OBSERVAÇÕES</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for ex in items %}
+                                                <tr>
+                                                    <td class="ps-4 py-3 fw-semibold {% if ex.alterado %}text-danger{% endif %}">
+                                                        {% if ex.alterado %}<i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>{% endif %}
+                                                        {{ ex.nome }}
+                                                    </td>
+                                                    <td class="py-3 {% if ex.alterado %}fw-bold text-danger{% endif %}">{{ ex.valor }}</td>
+                                                    <td class="text-center py-3 text-muted small">{{ ex.referencia }}</td>
+                                                    <td class="py-3 text-muted small">
+                                                        {% if ex.detalhes %}
+                                                            {{ ex.detalhes }}
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">Nenhum exame encontrado no texto.</p>
+                {% endif %}
             </div>
         </div>
     </div>
