@@ -11,7 +11,7 @@ def to_float(val):
 def limpar_valor(valor):
     linhas = valor.split('\n')
     linhas_limpas = []
-    ignore_prefixes = ['liberado por', 'responsáveis técnicos', 'dra.', 'dr.', 'hospital das clínicas', 'cep:', 'data da coleta', 'o volume do material', 'cultura para micobactéria', 'referência:']
+    ignore_prefixes = ['coleta confirmada:', 'liberado por', 'liberação:', 'emissão:', 'cliente:', 'médico.:', 'clínica:', 'origem.:', 'pedido:', 'dt. nasc:', 'responsáveis técnicos', 'dra.', 'dr.', 'hospital das clínicas', 'cep:', 'data da coleta', 'o volume do material', 'cultura para micobactéria', 'referência:']
     for linha in linhas:
         l = linha.strip()
         if any(l.lower().startswith(p) for p in ignore_prefixes):
@@ -160,7 +160,7 @@ def processar_bloco(bloco):
             })
             continue
             
-        m_urina = re.search(r'^([A-Za-zÀ-ÿ\s\-\+]+):\s*(.*?)\s+V\.R\.\s*:\s*(.*)$', linha, re.IGNORECASE)
+        m_urina = re.search(r'^([A-Za-zÀ-ÿ\d\s\-\+\,\(\)\.]+):\s*(.*?)\s+V\.R\.\s*:\s*(.*)$', linha, re.IGNORECASE)
         if m_urina:
             sub_nome = m_urina.group(1).strip()
             valor = m_urina.group(2).strip()
@@ -175,11 +175,11 @@ def processar_bloco(bloco):
             })
             continue
             
-        m_kv = re.search(r'^([A-Za-zÀ-ÿ\s\-\+]+):\s*(.*)$', linha)
+        m_kv = re.search(r'^([A-Za-zÀ-ÿ\d\s\-\+\,\(\)\.]+):\s*(.*)$', linha)
         if m_kv and "V.R." not in linha and "Valores" not in linha and "Método" not in linha and "Material" not in linha:
             sub_nome = m_kv.group(1).strip()
             
-            ignore_keywords = ['liberado', 'cep', 'fones', 'cnpj', 'emissão', 'cliente', 'dt. nasc', 'rg', 'médico', 'clínica', 'origem', 'pedido', 'liberação', 'data da coleta', 'cnes', 'npf', 'fl.', 'responsáveis', 'obs', 'nota', 'referência']
+            ignore_keywords = ['coleta', 'liberado', 'cep', 'fones', 'cnpj', 'emissão', 'cliente', 'dt. nasc', 'rg', 'médico', 'clínica', 'origem', 'pedido', 'liberação', 'data da coleta', 'cnes', 'npf', 'fl.', 'responsáveis', 'obs', 'nota', 'referência']
             if any(kw in sub_nome.lower() for kw in ignore_keywords):
                 continue
                 
@@ -261,8 +261,14 @@ def formatar_saida(exames_list):
     grouped = {}
     for ex in exames_list:
         mat = ex.get('material', 'OUTROS').upper().strip()
-        if mat in ['LÍQUIDO CEFALORRAQUEANO', 'LIQUOR', 'LÍQUOR', 'LÍQUIDO CEFALORRAQUIDIANO', 'LÍQUIDO CEFALORRAQUIANO']:
+        nome_exame = ex.get('nome', '').upper()
+        if 'CULTURA' in nome_exame or 'ANTIBIOGRAMA' in nome_exame:
+            mat = ''
+        elif mat in ['LÍQUIDO CEFALORRAQUEANO', 'LIQUOR', 'LÍQUOR', 'LÍQUIDO CEFALORRAQUIDIANO', 'LÍQUIDO CEFALORRAQUIANO']:
             mat = 'LÍQUOR'
+        elif 'SANGUE' in mat:
+            mat = 'SANGUE'
+            
         if mat not in grouped:
             grouped[mat] = []
         grouped[mat].append(ex)
@@ -273,31 +279,146 @@ def formatar_saida(exames_list):
         if m not in ordem_materiais:
             ordem_materiais.append(m)
             
+    display_names = {
+        'neutrófilos': 'Neutr.',
+        'eosinófilos': 'Eo.',
+        'basófilos': 'Bas.',
+        'monócitos': 'Mono.',
+        'linfócitos': 'Linf.',
+        'uréia': 'Ur',
+        'creatinina': 'Cr',
+        'proteína c reativa': 'PCR',
+        'magnésio': 'Mg',
+        'fósforo': 'P',
+        'hemoglobina': 'Hb',
+        'hematócrito': 'Ht',
+        'plaquetas': 'PLQ',
+        'potássio': 'K',
+        'sódio': 'Na',
+        'cálcio iônico': 'CaI',
+        'cálcio total': 'CaT',
+        'cálcio': 'CaT',
+        'cloro': 'Cl',
+        'colesterol não-hdl': 'Não-HDL',
+        'colesterol não hdl': 'Não-HDL',
+        'colesterol total': 'CT',
+        'colesterol hdl': 'HDL',
+        'colesterol vldl': 'VLDL',
+        'colesterol ldl': 'LDL',
+        'triglicérides': 'TG',
+        'triglicerídeos': 'TG',
+        'aspartato aminotransferase': 'AST',
+        'alanino aminotransferase': 'ALT',
+        'fosfatase alcalina': 'FA',
+        'gama-glutamiltransferase': 'GGT',
+        'gama-glutamil transferase': 'GGT',
+        'bilirrubina total': 'BT',
+        'bilirrubina direta': 'BD',
+        'bilirrubina indireta': 'BI',
+        'vitamina b12': 'VitB12',
+        't4 livre': 'T4L',
+        'tiroxina livre': 'T4L',
+        'hormônio tireoestimulante': 'TSH',
+        'tsh': 'TSH',
+        'ácido fólico': 'ÁCIDO FÓLICO',
+        'hbsag': 'HbsAg',
+        'anticorpo contra o antígeno de superfície': 'Anti-HBs',
+        'antígeno de superfície': 'HbsAg',
+        'anti-hcv': 'Anti-HCV',
+        'hepatite c, anticorpo': 'Anti-HCV',
+        'anti-hbs': 'Anti-HBs',
+        'anti-hbc': 'Anti-HBc',
+        'anticorpos totais contra o antígeno core': 'Anti-HBc',
+        'vdrl': 'VDRL',
+        'sorologia para sífilis': 'VDRL',
+        'albumina': 'Albumina',
+        'urocultura': 'Urocultura',
+        'antibiograma': 'Antibiograma',
+        'lactato desidrogenase': 'LDH',
+        'antígeno carcinoembrionário': 'CEA',
+        'pesquisa de antígeno carcinoembrionário': 'CEA',
+        'pesquisa de antígeno carcinoembrionário (cea)': 'CEA',
+        'ca 15.3': 'CA 15.3',
+        'ca 15-3': 'CA 15.3',
+        'fsh': 'FSH',
+        'hormônio folículo estimulante': 'FSH',
+        'estradiol': 'ESTRADIOL',
+        'tempo e atividade de protrombina': 'TAP',
+        'tempo de protrombina': 'TAP',
+        'atividade de protrombina': 'ATIVIDADE',
+        'atividade': 'ATIVIDADE',
+        'rni': 'RNI',
+    }
+    
+    ordem_sangue = [
+        'Ur', 'Cr', 'Na', 'K', 'CaI', 'CaT', 'Mg', 'Cl', 'PCR', 'AST', 'ALT', 'GGT', 'FA', 'Albumina', 'LDH',
+        'BT', 'BD', 'BI', 'TAP', 'ATIVIDADE', 'RNI', 'CEA', 'CA 15.3', 'FSH', 'ESTRADIOL',
+        'CT', 'HDL', 'VLDL', 'Não-HDL', 'TG', 'LDL',
+        'HbsAg', 'Anti-HCV', 'Anti-HBs', 'Anti-HBc', 'VDRL', 'VitB12', 'TSH', 'T4L', 'ÁCIDO FÓLICO',
+        'Ferro', 'VitD', 'C3', 'C4', 'Ferritina', 'IST', 'TIBC', 'P',
+        'Leucócitos', 'Neutr.', 'Eo.', 'Bas.', 'Mono.', 'Linf.',
+        'Hemácias', 'Hb', 'Ht', 'VCM', 'HCM', 'CHCM', 'RDW', 'PLQ', 'Ret',
+        'pH', 'pO2', 'pCO2', 'HCO3', 'BE', 'Sat O2',
+        'Glicose', 'Lactato'
+    ]
+
     for mat in ordem_materiais:
         if mat not in grouped or not grouped[mat]:
             continue
         items = grouped[mat]
-        part_items = []
+        
+        # Format items and update names
+        processed_items = []
         for ex in items:
             nome = ex.get('nome')
             if ' - ' in nome:
                 nome = nome.split(' - ')[-1] # Show only sub-name in summary
                 
+            for k, v in display_names.items():
+                if k in nome.lower():
+                    nome = v
+                    break
+                    
             valor = str(ex.get('valor'))
-            m_val = re.search(r'(-?\d+[\.,]?\d*)', valor)
-            if m_val and len(valor) < 15:
-                valor = m_val.group(1)
+            m_val = re.search(r'([<>]?\s*-?\d+[\.,]?\d*)', valor)
+            if m_val:
+                if mat == 'SANGUE' or len(valor) < 15:
+                    num_val = m_val.group(1).replace(',', '.').replace(' ', '')
+                    if '%' in valor:
+                        valor = f"{num_val}%"
+                    elif '/campo' in valor:
+                        valor = f"{num_val} /campo"
+                    else:
+                        valor = num_val
                 
             alterado = ex.get('alterado', False)
+            if mat == 'URINA' and nome in ['Cor', 'Aspecto', 'Epitélio escamoso', 'Epitélio de transição', 'Epitélio renal', 'Muco']:
+                continue
+                
+            processed_items.append({'nome': nome, 'valor': valor, 'alterado': alterado, 'original_order': len(processed_items)})
             
+        if mat == 'SANGUE':
+            def sort_key(x):
+                try:
+                    return ordem_sangue.index(x['nome'])
+                except ValueError:
+                    return len(ordem_sangue) + x['original_order']
+            processed_items.sort(key=sort_key)
+            
+        part_items = []
+        for item in processed_items:
+            nome = item['nome']
+            valor = item['valor']
+            alterado = item['alterado']
             cor = 'red' if alterado else 'black'
             fw = 'bold' if alterado else 'normal'
             span = f"<span style='color: {cor}; font-weight: {fw};'>{nome}: {valor}</span>"
             part_items.append(span)
             
-        html_parts.append(f"<strong>{mat}</strong>: " + " | ".join(part_items))
+        mat_str = f"<strong>{mat}</strong>: " if mat else ": "
+        html_parts.append(mat_str + " | ".join(part_items))
         
     if not html_parts:
         return f"({hoje}) - Nenhum exame reconhecido."
         
-    return f"({hoje}) - " + "<br>".join(html_parts)
+    return f"<br>".join(f"({hoje}) - {part}" for part in html_parts)
