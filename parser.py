@@ -143,21 +143,34 @@ def processar_bloco(bloco):
         if not linha or re.search(r'Método|Material|V\.R\.', linha, re.IGNORECASE) and not re.search(r':\s*(?:V\.R\.\s*:)?', linha, re.IGNORECASE):
             continue
             
-        m_hemo = re.search(r'^([\d\,\.]+\s*(?:/mm³|/campo|x\s*10³/µL|%|milhões/µL|g/dL|fL|pg)?(?:[\s\d\,\.]+%?)?)\s+([A-Za-zÀ-ÿ\s]+):\s*(?:V\.R\.\s*:)?\s*(.*)$', linha, re.IGNORECASE)
-        if m_hemo:
-            valor = m_hemo.group(1).strip()
-            sub_nome = m_hemo.group(2).strip()
-            ref = m_hemo.group(3).strip()
-            if ref == "": ref = "-"
+        units_pattern = r'x\s*10³[/\\]?[µμu]L|x\s*10\^3|milhões[/\\]?[µμu]L|g/dL|mg/dL|mmol/L|mmHg|fL|pg|%|/campo|/mm³|U/L|mg/L'
+        m_kv_hemo = re.search(r'^([^:]+):\s*(.*)$', linha)
+        matched_hemo = False
+        if m_kv_hemo:
+            left_part = m_kv_hemo.group(1).strip()
+            right_part = m_kv_hemo.group(2).strip()
+            m_val_name = re.search(rf'^([0-9][\d\,\.\s]*(?:{units_pattern})?(?:[\d\,\.\s]*(?:{units_pattern})?)?)\s*([A-Za-zÀ-ÿ].*)$', left_part, re.IGNORECASE)
             
-            exames_list.append({
-                'nome': f"{nome_exame} - {sub_nome}" if nome_exame != "EXAME" else sub_nome,
-                'valor': valor,
-                'referencia': ref,
-                'material': material,
-                'alterado': check_alterado(valor, ref),
-                'detalhes': '-'
-            })
+            if m_val_name:
+                valor = m_val_name.group(1).strip()
+                sub_nome = m_val_name.group(2).strip()
+                ref = right_part if right_part else "-"
+                
+                m_ref = re.search(r'^(?:V\.R\.\s*:)?\s*(.*)$', ref, re.IGNORECASE)
+                if m_ref:
+                    ref = m_ref.group(1).strip()
+                    
+                exames_list.append({
+                    'nome': f"{nome_exame} - {sub_nome}" if nome_exame != "EXAME" else sub_nome,
+                    'valor': valor,
+                    'referencia': ref,
+                    'material': material,
+                    'alterado': check_alterado(valor, ref),
+                    'detalhes': '-'
+                })
+                matched_hemo = True
+        
+        if matched_hemo:
             continue
             
         m_urina = re.search(r'^([A-Za-zÀ-ÿ\d\s\-\+\,\(\)\.]+):\s*(.*?)\s+V\.R\.\s*:\s*(.*)$', linha, re.IGNORECASE)
@@ -175,16 +188,19 @@ def processar_bloco(bloco):
             })
             continue
             
-        m_kv = re.search(r'^([A-Za-zÀ-ÿ\d\s\-\+\,\(\)\.]+):\s*(.*)$', linha)
+        m_kv = re.search(r'^([^:]+):\s*(.*)$', linha)
         if m_kv and "V.R." not in linha and "Valores" not in linha and "Método" not in linha and "Material" not in linha:
             sub_nome = m_kv.group(1).strip()
             
             ignore_keywords = ['coleta', 'liberado', 'cep', 'fones', 'cnpj', 'emissão', 'cliente', 'dt. nasc', 'rg', 'médico', 'clínica', 'origem', 'pedido', 'liberação', 'data da coleta', 'cnes', 'npf', 'fl.', 'responsáveis', 'obs', 'nota', 'referência']
-            if any(kw in sub_nome.lower() for kw in ignore_keywords):
+            ignore_exact = ['paciente', 'controle', 'até 17 anos']
+            if any(kw in sub_nome.lower() for kw in ignore_keywords) or sub_nome.lower() in ignore_exact:
                 continue
                 
             valor = m_kv.group(2).strip()
             valor = limpar_valor(valor)
+            if not valor:
+                continue
             exames_list.append({
                 'nome': f"{nome_exame} - {sub_nome}" if nome_exame != "EXAME" else sub_nome,
                 'valor': valor,
@@ -266,7 +282,7 @@ def formatar_saida(exames_list):
             mat = ''
         elif mat in ['LÍQUIDO CEFALORRAQUEANO', 'LIQUOR', 'LÍQUOR', 'LÍQUIDO CEFALORRAQUIDIANO', 'LÍQUIDO CEFALORRAQUIANO']:
             mat = 'LÍQUOR'
-        elif 'SANGUE' in mat:
+        elif 'SANGUE' in mat or mat in ['PLASMA CITRATADO']:
             mat = 'SANGUE'
             
         if mat not in grouped:
@@ -348,18 +364,27 @@ def formatar_saida(exames_list):
         'atividade de protrombina': 'ATIVIDADE',
         'atividade': 'ATIVIDADE',
         'rni': 'RNI',
+        'relação paciente/controle': 'TTPa-Relação',
+        'vancomicina': 'Vancomicina',
+        'sat. o2': 'Sat. O2',
+        'sat o2': 'Sat. O2',
+        'vcm': 'VCM',
+        'chcm': 'CHCM',
+        'hcm': 'HCM',
+        'rdw': 'RDW',
+        'vpm': 'VPM',
     }
     
     ordem_sangue = [
-        'Ur', 'Cr', 'Na', 'K', 'CaI', 'CaT', 'Mg', 'Cl', 'PCR', 'AST', 'ALT', 'GGT', 'FA', 'Albumina', 'LDH',
-        'BT', 'BD', 'BI', 'TAP', 'ATIVIDADE', 'RNI', 'CEA', 'CA 15.3', 'FSH', 'ESTRADIOL',
+        'Ur', 'Cr', 'Na', 'K', 'CaI', 'CaT', 'PCR', 'Mg', 'Cl', 'AST', 'ALT', 'GGT', 'FA', 'Albumina', 'LDH',
+        'BT', 'BD', 'BI', 'TAP', 'ATIVIDADE', 'RNI', 'TTPa-Relação', 'Vancomicina', 'CEA', 'CA 15.3', 'FSH', 'ESTRADIOL',
         'CT', 'HDL', 'VLDL', 'Não-HDL', 'TG', 'LDL',
         'HbsAg', 'Anti-HCV', 'Anti-HBs', 'Anti-HBc', 'VDRL', 'VitB12', 'TSH', 'T4L', 'ÁCIDO FÓLICO',
         'Ferro', 'VitD', 'C3', 'C4', 'Ferritina', 'IST', 'TIBC', 'P',
         'Leucócitos', 'Neutr.', 'Eo.', 'Bas.', 'Mono.', 'Linf.',
         'Hemácias', 'Hb', 'Ht', 'VCM', 'HCM', 'CHCM', 'RDW', 'PLQ', 'Ret',
-        'pH', 'pO2', 'pCO2', 'HCO3', 'BE', 'Sat O2',
-        'Glicose', 'Lactato'
+        'pH', 'pO2', 'pCO2', 'HCO3', 'BE', 'Sat. O2', 'K (gaso)', 'Na (gaso)', 'Ca+ (gaso)', 'Cl (gaso)',
+        'Glicose', 'Lactato', 'VPM', 'BEecf'
     ]
 
     for mat in ordem_materiais:
@@ -371,6 +396,7 @@ def formatar_saida(exames_list):
         processed_items = []
         for ex in items:
             nome = ex.get('nome')
+            is_gaso = 'GASOMETRIA' in nome.upper()
             if ' - ' in nome:
                 nome = nome.split(' - ')[-1] # Show only sub-name in summary
                 
@@ -378,11 +404,42 @@ def formatar_saida(exames_list):
                 if k in nome.lower():
                     nome = v
                     break
+            
+            if is_gaso and nome.upper() in ['K', 'NA', 'CA+', 'CAI', 'CAT', 'CL']:
+                if nome.upper() in ['CA+', 'CAI', 'CAT']:
+                    nome = 'Ca+'
+                elif nome.upper() == 'CL':
+                    nome = 'Cl'
+                elif nome.upper() == 'NA':
+                    nome = 'Na'
+                nome = f"{nome} (gaso)"
                     
             valor = str(ex.get('valor'))
-            m_val = re.search(r'([<>]?\s*-?\d+[\.,]?\d*)', valor)
-            if m_val:
-                if mat == 'SANGUE' or len(valor) < 15:
+            is_10_3 = '10³' in valor or '10^3' in valor
+            
+            if is_10_3:
+                m_abs = re.search(r'([<>]?\s*-?\d+[\.,]?\d*)\s*(?:x\s*)?10(?:\^3|³)', valor)
+                if m_abs:
+                    num_val = m_abs.group(1).replace(',', '.').replace(' ', '')
+                else:
+                    m_val = re.search(r'([<>]?\s*-?\d+[\.,]?\d*)', valor)
+                    num_val = m_val.group(1).replace(',', '.').replace(' ', '') if m_val else "0"
+                try:
+                    prefix = ""
+                    if num_val.startswith(('<', '>')):
+                        prefix = num_val[0]
+                        num_val = num_val[1:]
+                    
+                    f_val = float(num_val) * 1000
+                    if f_val.is_integer():
+                        valor = f"{prefix}{int(f_val)}"
+                    else:
+                        valor = f"{prefix}{f_val}"
+                except ValueError:
+                    valor = num_val
+            else:
+                m_val = re.search(r'([<>]?\s*-?\d+[\.,]?\d*)', valor)
+                if m_val:
                     num_val = m_val.group(1).replace(',', '.').replace(' ', '')
                     if '%' in valor:
                         valor = f"{num_val}%"
