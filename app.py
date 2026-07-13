@@ -1,9 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import urllib.parse
-from parser import processar_exames, formatar_saida
+from parser import processar_exames_geral, extrair_gasometria, formatar_saida
 from gasometria import calcular_gasometria
-from referencias import classificar_exames
-from gemini_parser import chamar_gemini, formatar_saida_gemini
 
 app = Flask(__name__)
 
@@ -21,51 +19,35 @@ def processar():
     except ValueError:
         albumina = 4.0
         
-    gemini_res = None
-    # Tentamos usar o Gemini se a chave de API estiver configurada
-    try:
-        gemini_res = chamar_gemini(texto)
-    except Exception as e:
-        print(f"Erro ao executar parse do Gemini: {e}")
-        
-    if gemini_res and "exames" in gemini_res:
-        exames_list = gemini_res["exames"]
-        
-        # Reconstrói os valores numéricos para o cálculo de gasometria matemática
-        valores_gaso = gemini_res.get("valores_gasometria") or {}
-        exames_gaso = {
-            'pH': valores_gaso.get('pH'),
-            'pCO2': valores_gaso.get('pCO2'),
-            'HCO3': valores_gaso.get('HCO3'),
-            'Na (gaso)': valores_gaso.get('Na (gaso)'),
-            'K (gaso)': valores_gaso.get('K (gaso)'),
-            'Cl': valores_gaso.get('Cl'),
-            'Glicose': valores_gaso.get('Glicose'),
-            'Ur': valores_gaso.get('Ur'),
-        }
-        
-        # Sugestão inteligente de albumina se detectado e o usuário não recalculou explicitamente
-        albumina_sugestao = gemini_res.get("albumina_sugestao")
-        if albumina_str == '4.0' and albumina_sugestao is not None:
-            albumina = albumina_sugestao
-            
-        albumina_encontrada = (albumina_sugestao is not None) or any(
-            e.get('nome', '').lower() == 'albumina' for e in exames_list
-        )
-        
-        linha_resumo = formatar_saida_gemini(exames_list)
-        gasometria = calcular_gasometria(exames_gaso, albumina)
-        alterados = [e for e in exames_list if e.get('alterado')]
-    else:
-        # Fallback para o analisador de expressões regulares (regex) atual
-        exames = processar_exames(texto)
-        exames_classificados = classificar_exames(exames)
-        linha_resumo = formatar_saida(exames_classificados)
-        gasometria = calcular_gasometria(exames, albumina)
-        alterados = [e for e in exames_classificados.values() if e.get('alterado')]
-        exames_list = list(exames_classificados.values())
-        albumina_encontrada = 'Albumina' in exames_classificados
-        
+    exames_list = processar_exames_geral(texto)
+    linha_resumo = formatar_saida(exames_list)
+    
+    # Check if albumina is in the parsed exams to suggest replacing
+    albumina_encontrada = any('albumina' in e.get('nome', '').lower() for e in exames_list)
+    if albumina_encontrada and albumina_str == '4.0':
+        for ex in exames_list:
+            if 'albumina' in ex.get('nome', '').lower():
+                try:
+                    albumina = float(str(ex.get('valor')).split()[0].replace(',', '.'))
+                except:
+                    pass
+    
+    # Recalcular gasometria
+    gaso = extrair_gasometria(texto)
+    exames_gaso = {
+        'pH': gaso.get('pH'),
+        'pCO2': gaso.get('pCO2'),
+        'HCO3': gaso.get('HCO3'),
+        'Na (gaso)': gaso.get('Na'),
+        'K (gaso)': gaso.get('K'),
+        'Cl': gaso.get('Cl'),
+        'Glicose': gaso.get('Glicose'),
+        'Ur': gaso.get('Ur'),
+    }
+    gasometria = calcular_gasometria(exames_gaso, albumina)
+    
+    alterados = [e for e in exames_list if e.get('alterado')]
+    
     grouped_exames = {}
     for ex in exames_list:
         mat = ex.get('material', 'OUTROS').upper().strip()
