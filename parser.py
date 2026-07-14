@@ -149,7 +149,7 @@ def processar_bloco(bloco):
         if m_kv_hemo:
             left_part = m_kv_hemo.group(1).strip()
             right_part = m_kv_hemo.group(2).strip()
-            m_val_name = re.search(rf'^([0-9][\d\,\.\s]*(?:{units_pattern})?(?:[\d\,\.\s]*(?:{units_pattern})?)?)\s*([A-Za-zÀ-ÿ].*)$', left_part, re.IGNORECASE)
+            m_val_name = re.search(rf'^([<>\-]?\s*[0-9][\d\,\.\s]*(?:{units_pattern})?(?:[\d\,\.\s]*(?:{units_pattern})?)?)\s*([A-Za-zÀ-ÿ].*)$', left_part, re.IGNORECASE)
             
             if m_val_name:
                 valor = m_val_name.group(1).strip()
