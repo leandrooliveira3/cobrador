@@ -306,6 +306,9 @@ def formatar_saida(exames_list):
         'proteína c reativa': 'PCR',
         'magnésio': 'Mg',
         'fósforo': 'P',
+        'hemoglobina glicada': 'HbA1c',
+        'hemoglobina glicosada': 'HbA1c',
+        'hba1c': 'HbA1c',
         'hemoglobina': 'Hb',
         'hematócrito': 'Ht',
         'plaquetas': 'PLQ',
@@ -384,7 +387,7 @@ def formatar_saida(exames_list):
         'Leucócitos', 'Neutr.', 'Eo.', 'Bas.', 'Mono.', 'Linf.',
         'Hemácias', 'Hb', 'Ht', 'VCM', 'HCM', 'CHCM', 'RDW', 'PLQ', 'Ret',
         'pH', 'pO2', 'pCO2', 'HCO3', 'BE', 'Sat. O2', 'K (gaso)', 'Na (gaso)', 'Ca+ (gaso)', 'Cl (gaso)',
-        'Glicose', 'Lactato', 'VPM', 'BEecf'
+        'Glicose', 'HbA1c', 'Lactato', 'VPM', 'BEecf'
     ]
 
     for mat in ordem_materiais:
